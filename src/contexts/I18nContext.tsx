@@ -12,6 +12,7 @@ import {
 	DEFAULT_LOCALE,
 	I18N_NAMESPACES,
 	type I18nNamespace,
+	LANGUAGE_METADATA,
 	SUPPORTED_LOCALES,
 } from "@/i18n/config";
 import enCommon from "@/i18n/locales/en/common.json";
@@ -22,6 +23,14 @@ import enLaunch from "@/i18n/locales/en/launch.json";
 import enSettings from "@/i18n/locales/en/settings.json";
 import enShortcuts from "@/i18n/locales/en/shortcuts.json";
 import enTimeline from "@/i18n/locales/en/timeline.json";
+import arCommon from "@/i18n/locales/ar/common.json";
+import arDialogs from "@/i18n/locales/ar/dialogs.json";
+import arEditor from "@/i18n/locales/ar/editor.json";
+import arExtensions from "@/i18n/locales/ar/extensions.json";
+import arLaunch from "@/i18n/locales/ar/launch.json";
+import arSettings from "@/i18n/locales/ar/settings.json";
+import arShortcuts from "@/i18n/locales/ar/shortcuts.json";
+import arTimeline from "@/i18n/locales/ar/timeline.json";
 import esCommon from "@/i18n/locales/es/common.json";
 import esDialogs from "@/i18n/locales/es/dialogs.json";
 import esEditor from "@/i18n/locales/es/editor.json";
@@ -101,6 +110,16 @@ const messages: Record<AppLocale, LocaleBundle> = {
 		dialogs: enDialogs,
 		shortcuts: enShortcuts,
 		extensions: enExtensions,
+	},
+	ar: {
+		common: arCommon,
+		launch: arLaunch,
+		editor: arEditor,
+		timeline: arTimeline,
+		settings: arSettings,
+		dialogs: arDialogs,
+		shortcuts: arShortcuts,
+		extensions: arExtensions,
 	},
 	es: {
 		common: esCommon,
@@ -321,6 +340,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
 	useEffect(() => {
 		document.documentElement.lang = locale;
+		document.documentElement.dir = LANGUAGE_METADATA[locale].dir;
 	}, [locale]);
 
 	const t = useCallback(
