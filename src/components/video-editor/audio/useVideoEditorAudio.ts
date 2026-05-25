@@ -1,12 +1,9 @@
 import React, { useMemo } from "react";
 import type { SourceAudioTrackSettings } from "@/components/video-editor/audio/audioTypes";
 import { resolveSourceTrackRoutingPolicy } from "@/lib/exporter/sourceTrackRoutingPolicy";
-import type {
-	AudioRegion,
-	ClipRegion,
-	SpeedRegion,
-} from "../types";
-import { getActiveClipIdAtSourceTime, isClipMutedById } from "./clipAudio";
+import type { AudioRegion, ClipRegion, SpeedRegion } from "../types";
+import { getClipSourceEndMs } from "../types";
+import { isClipMutedById } from "./clipAudio";
 import { useAudioPreviewSync } from "./useAudioPreviewSync";
 import { useClipAudioSettingsController } from "./useClipAudioSettingsController";
 import { useSourceAudioFallback } from "./useSourceAudioFallback";
@@ -26,10 +23,35 @@ function extractLocalPathFromMediaServerUrl(input: string | null | undefined): s
 	}
 }
 
+function findActiveClipIndex(clips: ClipRegion[], sourceMs: number): number {
+	let low = 0;
+	let high = clips.length - 1;
+
+	while (low <= high) {
+		const mid = (low + high) >> 1;
+		const clip = clips[mid];
+		const sourceEndMs = getClipSourceEndMs(clip);
+
+		if (sourceMs < clip.startMs || sourceMs >= sourceEndMs) {
+			if (sourceMs < clip.startMs) {
+				high = mid - 1;
+			} else {
+				low = mid + 1;
+			}
+			continue;
+		}
+
+		return mid;
+	}
+
+	return -1;
+}
+
 interface UseVideoEditorAudioParams {
 	currentSourcePath: string | null;
 	selectedClipId: string | null;
 	clipRegions: ClipRegion[];
+	sortedClipRegions?: ClipRegion[];
 	audioRegions: AudioRegion[];
 	effectiveSpeedRegions: SpeedRegion[];
 	sourceAudioTrackSettingsByClip: Record<string, SourceAudioTrackSettings>;
@@ -54,6 +76,7 @@ export function useVideoEditorAudio({
 	currentSourcePath,
 	selectedClipId,
 	clipRegions,
+	sortedClipRegions,
 	audioRegions,
 	effectiveSpeedRegions,
 	sourceAudioTrackSettingsByClip,
@@ -85,13 +108,20 @@ export function useVideoEditorAudio({
 		() => resolveSourceTrackRoutingPolicy(currentSourcePath, sourceAudioFallbackPaths),
 		[currentSourcePath, sourceAudioFallbackPaths],
 	);
+	const sortedAudioClipRegions = useMemo(
+		() => sortedClipRegions ?? [...clipRegions].sort((a, b) => a.startMs - b.startMs),
+		[clipRegions, sortedClipRegions],
+	);
+
 	const previewSourceAudioFallbackPaths = sourceTrackRoutingPolicy.playbackPaths;
 	const shouldMutePreviewVideo = sourceTrackRoutingPolicy.muteEmbeddedPreview;
 
-	const activeClipIdAtCurrentTime = useMemo(
-		() => getActiveClipIdAtSourceTime(currentTime, clipRegions),
-		[clipRegions, currentTime],
-	);
+	const activeClipIdAtCurrentTime = useMemo(() => {
+		const sourceMs = Math.round(currentTime * 1000);
+		const activeClipIndex = findActiveClipIndex(sortedAudioClipRegions, sourceMs);
+		const activeClip = activeClipIndex >= 0 ? sortedAudioClipRegions[activeClipIndex] : null;
+		return activeClip?.id ?? null;
+	}, [currentTime, sortedAudioClipRegions]);
 	const isCurrentClipMuted = useMemo(
 		() => isClipMutedById(activeClipIdAtCurrentTime, clipRegions),
 		[activeClipIdAtCurrentTime, clipRegions],

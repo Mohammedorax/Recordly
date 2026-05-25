@@ -200,9 +200,8 @@ import {
 	getClipSourceEndMs,
 	getTimelineDurationMs,
 	type Padding,
-	mapSourceTimeToTimelineTime as resolveSourceTimeToTimelineTime,
-	mapTimelineTimeToSourceTime as resolveTimelineTimeToSourceTime,
 	type SpeedRegion,
+	sortClipRegions,
 	type TrimRegion,
 	trimsToClips,
 	type WebcamOverlaySettings,
@@ -234,6 +233,136 @@ type CancelableExporter = {
 };
 
 const EXPORT_BLOB_STREAM_CHUNK_BYTES = 16 * 1024 * 1024;
+
+function normalizeMs(value: number): number {
+	return Math.round(value);
+}
+
+function findTimelineClipByTime(clips: ClipRegion[], timeMs: number) {
+	let start = 0;
+	let end = clips.length - 1;
+
+	while (start <= end) {
+		const mid = (start + end) >> 1;
+		const clip = clips[mid];
+		if (timeMs < clip.startMs) {
+			end = mid - 1;
+		} else if (timeMs > clip.endMs) {
+			start = mid + 1;
+		} else {
+			return clip;
+		}
+	}
+
+	return null;
+}
+
+function findTimelineClipBySourceTime(clips: ClipRegion[], timeMs: number) {
+	let start = 0;
+	let end = clips.length - 1;
+
+	while (start <= end) {
+		const mid = (start + end) >> 1;
+		const clip = clips[mid];
+		const sourceEndMs = getClipSourceEndMs(clip);
+		if (timeMs < clip.startMs) {
+			end = mid - 1;
+		} else if (timeMs > sourceEndMs) {
+			start = mid + 1;
+		} else if (timeMs === sourceEndMs) {
+			return null;
+		} else {
+			return clip;
+		}
+	}
+
+	return null;
+}
+
+function getSafeClipSpeedLocal(clip: ClipRegion) {
+	return Number.isFinite(clip.speed) && clip.speed > 0 ? clip.speed : 1;
+}
+
+function mapTimelineTimeToSourceTimeFast(timeMs: number, clips: ClipRegion[]): number {
+	const roundedTimeMs = normalizeMs(timeMs);
+	if (clips.length === 0) {
+		return roundedTimeMs;
+	}
+
+	const activeClip = findTimelineClipByTime(clips, roundedTimeMs);
+	if (activeClip) {
+		return normalizeMs(
+			activeClip.startMs +
+				(roundedTimeMs - activeClip.startMs) * getSafeClipSpeedLocal(activeClip),
+		);
+	}
+
+	let nearestTimeMs = normalizeMs(clips[0].startMs);
+	let nearestDistance = Math.abs(roundedTimeMs - nearestTimeMs);
+
+	for (const clip of clips) {
+		const boundaries = [clip.startMs, clip.endMs];
+		for (const boundary of boundaries) {
+			const distance = Math.abs(roundedTimeMs - boundary);
+			if (distance < nearestDistance) {
+				nearestDistance = distance;
+				nearestTimeMs = normalizeMs(boundary);
+			}
+		}
+	}
+
+	return nearestTimeMs;
+}
+
+function mapSourceTimeToTimelineTimeFast(timeMs: number, clips: ClipRegion[]): number {
+	const roundedTimeMs = normalizeMs(timeMs);
+	if (clips.length === 0) {
+		return roundedTimeMs;
+	}
+
+	const activeClip = findTimelineClipBySourceTime(clips, roundedTimeMs);
+	if (activeClip) {
+		return normalizeMs(
+			activeClip.startMs +
+				(roundedTimeMs - activeClip.startMs) / getSafeClipSpeedLocal(activeClip),
+		);
+	}
+
+	let nearestTimeMs = normalizeMs(clips[0].startMs);
+	let nearestDistance = Math.abs(roundedTimeMs - nearestTimeMs);
+
+	for (const clip of clips) {
+		const sourceEndMs = getClipSourceEndMs(clip);
+		const boundaries = [clip.startMs, sourceEndMs];
+		for (const boundary of boundaries) {
+			const distance = Math.abs(roundedTimeMs - boundary);
+			if (distance < nearestDistance) {
+				nearestDistance = distance;
+				nearestTimeMs = normalizeMs(boundary);
+			}
+		}
+	}
+
+	return nearestTimeMs;
+}
+
+function trimRegionsAreEqual(left: TrimRegion[], right: TrimRegion[]): boolean {
+	if (left.length !== right.length) {
+		return false;
+	}
+
+	for (let i = 0; i < left.length; i += 1) {
+		if (
+			left[i].id !== right[i].id ||
+			left[i].startMs !== right[i].startMs ||
+			left[i].endMs !== right[i].endMs
+		) {
+			return false;
+		}
+	}
+
+	return true;
+}
 
 async function streamExportBlobToTempFile(blob: Blob, extension: string): Promise<string | null> {
 	if (
@@ -490,6 +619,7 @@ export default function VideoEditor() {
 	const [selectedZoomId, setSelectedZoomId] = useState<string | null>(null);
 	const [trimRegions, setTrimRegions] = useState<TrimRegion[]>([]);
 	const [clipRegions, setClipRegions] = useState<ClipRegion[]>([]);
+	const clipRegionsByIdRef = useRef<Map<string, ClipRegion>>(new Map());
 	const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
 	const [speedRegions, setSpeedRegions] = useState<SpeedRegion[]>([]);
 	const [annotationRegions, setAnnotationRegions] = useState<AnnotationRegion[]>([]);
@@ -526,6 +656,15 @@ export default function VideoEditor() {
 	const [exportError, setExportError] = useState<string | null>(null);
 	const [showExportDropdown, setShowExportDropdown] = useState(false);
 	const [previewVolume, setPreviewVolume] = useState(1);
+
+	useEffect(() => {
+		const nextById = new Map<string, ClipRegion>();
+		for (const clip of clipRegions) {
+			nextById.set(clip.id, clip);
+		}
+		clipRegionsByIdRef.current = nextById;
+	}, [clipRegions]);
+
 	const applySessionPresentation = useCallback(
 		(
 			session:
@@ -3146,17 +3285,22 @@ export default function VideoEditor() {
 	useEffect(() => {
 		const totalMs = Math.round(duration * 1000);
 		if (totalMs <= 0 || clipRegions.length === 0) return;
-		setTrimRegions(clipsToTrims(clipRegions, totalMs));
+		const nextTrimRegions = clipsToTrims(clipRegions, totalMs);
+		setTrimRegions((prev) =>
+			trimRegionsAreEqual(prev, nextTrimRegions) ? prev : nextTrimRegions,
+		);
 	}, [clipRegions, duration]);
 
+	const sortedClipRegions = useMemo(() => sortClipRegions(clipRegions), [clipRegions]);
+
 	const mapTimelineTimeToSourceTime = useCallback(
-		(timeMs: number) => resolveTimelineTimeToSourceTime(timeMs, clipRegions),
-		[clipRegions],
+		(timeMs: number) => mapTimelineTimeToSourceTimeFast(timeMs, sortedClipRegions),
+		[sortedClipRegions],
 	);
 
 	const mapSourceTimeToTimelineTime = useCallback(
-		(timeMs: number) => resolveSourceTimeToTimelineTime(timeMs, clipRegions),
-		[clipRegions],
+		(timeMs: number) => mapSourceTimeToTimelineTimeFast(timeMs, sortedClipRegions),
+		[sortedClipRegions],
 	);
 
 	const effectiveZoomRegions = useMemo<ZoomRegion[]>(
@@ -3204,6 +3348,7 @@ export default function VideoEditor() {
 		currentSourcePath,
 		selectedClipId,
 		clipRegions,
+		sortedClipRegions,
 		audioRegions,
 		effectiveSpeedRegions,
 		sourceAudioTrackSettingsByClip,
@@ -3510,73 +3655,63 @@ export default function VideoEditor() {
 		[selectedClipId],
 	);
 
-	const handleClipSpanChange = useCallback(
-		(id: string, span: Span) => {
-			const oldClip = clipRegions.find((c) => c.id === id);
-			const newStart = Math.round(span.start);
-			const newEnd = Math.round(span.end);
-			const removedSegments = oldClip
-				? [
-						...(newStart > oldClip.startMs
-							? [{ startMs: oldClip.startMs, endMs: newStart }]
-							: []),
-						...(newEnd < oldClip.endMs
-							? [{ startMs: newEnd, endMs: oldClip.endMs }]
-							: []),
-					]
-				: [];
+	const handleClipSpanChange = useCallback((id: string, span: Span) => {
+		const newStart = Math.round(span.start);
+		const newEnd = Math.round(span.end);
 
-			if (oldClip) {
-				const startDelta = newStart - oldClip.startMs;
-				const endDelta = newEnd - oldClip.endMs;
-				const isMove = Math.abs(startDelta - endDelta) < 1 && Math.abs(startDelta) > 0;
+		const oldClip = clipRegionsByIdRef.current.get(id);
+		if (!oldClip || (oldClip.startMs === newStart && oldClip.endMs === newEnd)) {
+			return;
+		}
 
-				if (isMove) {
-					const delta = startDelta;
-					setZoomRegions((prev) =>
-						prev.map((zoom) => {
-							const overlaps =
-								zoom.startMs < oldClip.endMs && zoom.endMs > oldClip.startMs;
-							if (overlaps) {
-								return {
-									...zoom,
-									startMs: zoom.startMs + delta,
-									endMs: zoom.endMs + delta,
-								};
-							}
-							return zoom;
-						}),
-					);
-				}
-			}
+		const removedSegments: { startMs: number; endMs: number }[] = [
+			...(newStart > oldClip.startMs ? [{ startMs: oldClip.startMs, endMs: newStart }] : []),
+			...(newEnd < oldClip.endMs ? [{ startMs: newEnd, endMs: oldClip.endMs }] : []),
+		];
 
-			if (removedSegments.length > 0) {
-				const removeTrimmedRegions = <T extends { startMs: number; endMs: number }>(
-					regions: T[],
-				): T[] =>
-					regions.filter(
-						(region) =>
-							!removedSegments.some(
-								(segment) =>
-									region.startMs < segment.endMs &&
-									region.endMs > segment.startMs,
-							),
-					);
-				setZoomRegions((prev) => removeTrimmedRegions(prev));
-				setAnnotationRegions((prev) => removeTrimmedRegions(prev));
-				setSpeedRegions((prev) => removeTrimmedRegions(prev));
-				setAudioRegions((prev) => removeTrimmedRegions(prev));
-			}
-
-			setClipRegions((prev) =>
-				prev.map((clip) =>
-					clip.id === id ? { ...clip, startMs: newStart, endMs: newEnd } : clip,
-				),
+		const startDelta = newStart - oldClip.startMs;
+		const endDelta = newEnd - oldClip.endMs;
+		const isMove = Math.abs(startDelta - endDelta) < 1 && Math.abs(startDelta) > 0;
+		if (isMove) {
+			const delta = startDelta;
+			setZoomRegions((prev) =>
+				prev.map((zoom) => {
+					const overlaps = zoom.startMs < oldClip.endMs && zoom.endMs > oldClip.startMs;
+					if (!overlaps) {
+						return zoom;
+					}
+					return {
+						...zoom,
+						startMs: zoom.startMs + delta,
+						endMs: zoom.endMs + delta,
+					};
+				}),
 			);
-		},
-		[clipRegions],
-	);
+		}
 
+		if (removedSegments.length > 0) {
+			const removeTrimmedRegions = <T extends { startMs: number; endMs: number }>(
+				regions: T[],
+			): T[] =>
+				regions.filter(
+					(region) =>
+						!removedSegments.some(
+							(segment) =>
+								region.startMs < segment.endMs && region.endMs > segment.startMs,
+						),
+				);
+			setZoomRegions((prev) => removeTrimmedRegions(prev));
+			setAnnotationRegions((prev) => removeTrimmedRegions(prev));
+			setSpeedRegions((prev) => removeTrimmedRegions(prev));
+			setAudioRegions((prev) => removeTrimmedRegions(prev));
+		}
+
+		setClipRegions((prev) =>
+			prev.map((clip) =>
+				clip.id === id ? { ...clip, startMs: newStart, endMs: newEnd } : clip,
+			),
+		);
+	}, []);
 	const handleClipSpeedChange = useCallback(
 		(speed: number) => {
 			if (!selectedClipId) return;

@@ -1,3 +1,4 @@
+import { type DragCancelEvent as DndDragCancelEvent } from "@dnd-kit/core";
 import type {
 	DragEndEvent,
 	DragMoveEvent,
@@ -9,13 +10,9 @@ import type {
 } from "dnd-timeline";
 import { TimelineContext } from "dnd-timeline";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { TimelineRegionSpan } from "../../core/timelineTypes";
-import {
-	clampRange,
-	resolveDragEnd,
-	resolveResizeEnd,
-} from "../../dnd/engine";
+import { clampRange, resolveDragEnd, resolveResizeEnd } from "../../dnd/engine";
 
 interface TimelineWrapperProps {
 	children: ReactNode;
@@ -47,6 +44,12 @@ export default function TimelineWrapper({
 	onLiveSpanPreviewChange,
 }: TimelineWrapperProps) {
 	const totalMs = Math.max(0, Math.round(videoDuration * 1000));
+	const tooltipFrameId = useRef<number | null>(null);
+	const pendingTooltipRef = useRef<{
+		span: { start: number; end: number } | null;
+		screenX?: number;
+	} | null>(null);
+	const activeDragItemIdRef = useRef<string | null>(null);
 
 	const onResizeEnd = useCallback(
 		(event: ResizeEndEvent) => {
@@ -100,6 +103,11 @@ export default function TimelineWrapper({
 
 	// Drag/resize tooltip (direct DOM updates, no re-renders)
 	const tooltipRef = useRef<HTMLDivElement>(null);
+	const tooltipLayout = useRef({
+		text: "",
+		leftPx: 0,
+		visible: false,
+	});
 
 	const formatTooltipMs = useCallback((ms: number) => {
 		const s = ms / 1000;
@@ -108,34 +116,70 @@ export default function TimelineWrapper({
 		return min > 0 ? `${min}:${sec.toFixed(1).padStart(4, "0")}` : `${sec.toFixed(1)}s`;
 	}, []);
 
-	const showTooltip = useCallback(
+	const setTooltipVisuals = useCallback(
 		(span: { start: number; end: number } | null, screenX?: number) => {
 			const el = tooltipRef.current;
 			if (!el) return;
 			if (!span) {
-				el.style.opacity = "0";
+				if (tooltipLayout.current.visible) {
+					tooltipLayout.current.visible = false;
+					el.style.opacity = "0";
+				}
 				return;
 			}
-			el.textContent = `${formatTooltipMs(span.start)} – ${formatTooltipMs(span.end)}`;
-			el.style.opacity = "1";
+			const nextText = `${formatTooltipMs(span.start)} – ${formatTooltipMs(span.end)}`;
+			if (nextText !== tooltipLayout.current.text) {
+				tooltipLayout.current.text = nextText;
+				el.textContent = nextText;
+			}
+
+			if (!tooltipLayout.current.visible) {
+				tooltipLayout.current.visible = true;
+				el.style.opacity = "1";
+			}
+
 			if (screenX !== undefined) {
 				const parent = el.parentElement;
 				if (parent) {
 					const rect = parent.getBoundingClientRect();
-					const x = Math.max(0, Math.min(screenX - rect.left, rect.width - 100));
-					el.style.left = `${x}px`;
+					const tooltipWidth = Math.max(el.offsetWidth, 56);
+					const x = Math.max(0, Math.min(screenX - rect.left, rect.width - tooltipWidth));
+					if (tooltipLayout.current.leftPx !== x) {
+						tooltipLayout.current.leftPx = x;
+						el.style.left = `${x}px`;
+					}
 				}
 			}
 		},
 		[formatTooltipMs],
 	);
+	const queueTooltip = useCallback(
+		(span: { start: number; end: number } | null, screenX?: number) => {
+			pendingTooltipRef.current = { span, screenX };
+			if (tooltipFrameId.current !== null) return;
+			if (typeof requestAnimationFrame === "undefined") {
+				setTooltipVisuals(span, screenX);
+				pendingTooltipRef.current = null;
+				return;
+			}
+			tooltipFrameId.current = requestAnimationFrame(() => {
+				tooltipFrameId.current = null;
+				const pending = pendingTooltipRef.current;
+				pendingTooltipRef.current = null;
+				if (!pending) return;
+				setTooltipVisuals(pending.span, pending.screenX);
+			});
+		},
+		[setTooltipVisuals],
+	);
 
 	const onDragStart = useCallback(
 		(event: DragStartEvent) => {
+			activeDragItemIdRef.current = event.active.id as string;
 			const span = event.active.data.current.getSpanFromDragEvent?.(event);
-			if (span) showTooltip(span);
+			if (span) queueTooltip(span);
 		},
-		[showTooltip],
+		[queueTooltip],
 	);
 
 	const onDragMove = useCallback(
@@ -145,13 +189,14 @@ export default function TimelineWrapper({
 				event.activatorEvent && "clientX" in event.activatorEvent
 					? (event.activatorEvent as PointerEvent).clientX + (event.delta?.x ?? 0)
 					: undefined;
-			if (span) showTooltip(span, screenX);
+			activeDragItemIdRef.current = event.active.id as string;
+			if (span) queueTooltip(span, screenX);
 			const moved = Math.hypot(event.delta?.x ?? 0, event.delta?.y ?? 0) > 0.01;
 			if (moved) {
 				onLiveSpanPreviewChange?.(event.active.id as string, span ?? null);
 			}
 		},
-		[onLiveSpanPreviewChange, showTooltip],
+		[onLiveSpanPreviewChange, queueTooltip],
 	);
 
 	const onResizeMove = useCallback(
@@ -161,30 +206,48 @@ export default function TimelineWrapper({
 				event.activatorEvent && "clientX" in event.activatorEvent
 					? (event.activatorEvent as PointerEvent).clientX + (event.delta?.x ?? 0)
 					: undefined;
-			if (span) showTooltip(span, screenX);
+			activeDragItemIdRef.current = event.active.id as string;
+			if (span) queueTooltip(span, screenX);
 			onLiveSpanPreviewChange?.(event.active.id as string, span ?? null);
 		},
-		[onLiveSpanPreviewChange, showTooltip],
+		[onLiveSpanPreviewChange, queueTooltip],
 	);
 
-	const hideTooltip = useCallback(() => showTooltip(null), [showTooltip]);
+	const clearDragState = useCallback(() => {
+		const activeDragId = activeDragItemIdRef.current;
+		if (activeDragId) {
+			onLiveSpanPreviewChange?.(activeDragId, null);
+			activeDragItemIdRef.current = null;
+		}
+		queueTooltip(null);
+	}, [onLiveSpanPreviewChange, queueTooltip]);
+
+	const hideTooltip = useCallback(() => queueTooltip(null), [queueTooltip]);
+	const handleDragCancel = useCallback(
+		(event: DndDragCancelEvent) => {
+			if (event.active.id) {
+				onLiveSpanPreviewChange?.(event.active.id as string, null);
+				activeDragItemIdRef.current = null;
+			}
+			hideTooltip();
+		},
+		[hideTooltip, onLiveSpanPreviewChange],
+	);
 
 	const onResizeEndWithTooltip = useCallback(
 		(event: ResizeEndEvent) => {
-			hideTooltip();
+			clearDragState();
 			onResizeEnd(event);
-			onLiveSpanPreviewChange?.(event.active.id as string, null);
 		},
-		[hideTooltip, onLiveSpanPreviewChange, onResizeEnd],
+		[clearDragState, onResizeEnd],
 	);
 
 	const onDragEndWithTooltip = useCallback(
 		(event: DragEndEvent) => {
-			hideTooltip();
+			clearDragState();
 			onDragEnd(event);
-			onLiveSpanPreviewChange?.(event.active.id as string, null);
 		},
-		[hideTooltip, onDragEnd, onLiveSpanPreviewChange],
+		[clearDragState, onDragEnd],
 	);
 
 	const handleRangeChange = useCallback(
@@ -204,6 +267,35 @@ export default function TimelineWrapper({
 		[minVisibleRangeMs, onRangeChange, totalMs],
 	);
 
+	useEffect(() => {
+		return () => {
+			if (tooltipFrameId.current !== null) {
+				cancelAnimationFrame(tooltipFrameId.current);
+				tooltipFrameId.current = null;
+			}
+			clearDragState();
+		};
+	}, [clearDragState]);
+
+	useEffect(() => {
+		if (typeof window === "undefined") return;
+
+		const handleGlobalDragStop = () => {
+			clearDragState();
+		};
+
+		window.addEventListener("pointerup", handleGlobalDragStop);
+		window.addEventListener("pointercancel", handleGlobalDragStop);
+		window.addEventListener("blur", handleGlobalDragStop);
+
+		return () => {
+			window.removeEventListener("pointerup", handleGlobalDragStop);
+			window.removeEventListener("pointercancel", handleGlobalDragStop);
+			window.removeEventListener("blur", handleGlobalDragStop);
+			clearDragState();
+		};
+	}, [clearDragState]);
+
 	return (
 		<TimelineContext
 			range={range}
@@ -213,6 +305,7 @@ export default function TimelineWrapper({
 			onDragStart={onDragStart}
 			onDragMove={onDragMove}
 			onDragEnd={onDragEndWithTooltip}
+			onDragCancel={handleDragCancel}
 			autoScroll={{ enabled: false }}
 			resizeHandleWidth={28}
 		>

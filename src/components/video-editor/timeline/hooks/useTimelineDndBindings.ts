@@ -8,9 +8,14 @@ import type {
 	TrimRegion,
 	ZoomRegion,
 } from "../../types";
-import type { TimelineRenderItem } from "../core/timelineTypes";
-import { getAnnotationTrackIndex, getAudioTrackIndex, isAnnotationTrackRowId, isAudioTrackRowId } from "../core/rows";
+import {
+	getAnnotationTrackIndex,
+	getAudioTrackIndex,
+	isAnnotationTrackRowId,
+	isAudioTrackRowId,
+} from "../core/rows";
 import { spansOverlap } from "../core/spans";
+import type { TimelineRenderItem } from "../core/timelineTypes";
 import { buildAllRegionSpans, buildTimelineItems, resolveDropRowId } from "../model/timelineModel";
 
 interface UseTimelineDndBindingsParams {
@@ -44,17 +49,36 @@ export function useTimelineDndBindings({
 	onSpeedSpanChange,
 	onAudioSpanChange,
 }: UseTimelineDndBindingsParams) {
+	const itemKindById = useMemo(() => {
+		const map = new Map<string, TimelineItemKind>();
+		for (const region of zoomRegions) map.set(region.id, "zoom");
+		for (const region of trimRegions) map.set(region.id, "trim");
+		for (const region of clipRegions) map.set(region.id, "clip");
+		for (const region of annotationRegions) map.set(region.id, "annotation");
+		for (const region of speedRegions) map.set(region.id, "speed");
+		for (const region of audioRegions) map.set(region.id, "audio");
+		return map;
+	}, [audioRegions, annotationRegions, clipRegions, speedRegions, trimRegions, zoomRegions]);
+
+	const annotationTrackIndexById = useMemo(() => {
+		const map = new Map<string, number>();
+		for (const region of annotationRegions) {
+			map.set(region.id, region.trackIndex ?? 0);
+		}
+		return map;
+	}, [annotationRegions]);
+
+	const audioTrackIndexById = useMemo(() => {
+		const map = new Map<string, number>();
+		for (const region of audioRegions) {
+			map.set(region.id, region.trackIndex ?? 0);
+		}
+		return map;
+	}, [audioRegions]);
+
 	const resolveItemKind = useCallback(
-		(id: string): TimelineItemKind => {
-			if (zoomRegions.some((r) => r.id === id)) return "zoom";
-			if (trimRegions.some((r) => r.id === id)) return "trim";
-			if (clipRegions.some((r) => r.id === id)) return "clip";
-			if (annotationRegions.some((r) => r.id === id)) return "annotation";
-			if (speedRegions.some((r) => r.id === id)) return "speed";
-			if (audioRegions.some((r) => r.id === id)) return "audio";
-			return null;
-		},
-		[zoomRegions, trimRegions, clipRegions, annotationRegions, speedRegions, audioRegions],
+		(id: string): TimelineItemKind => itemKindById.get(id) ?? null,
+		[itemKindById],
 	);
 
 	const resolveTrackIndex = useCallback(
@@ -62,13 +86,13 @@ export function useTimelineDndBindings({
 			if (kind === "annotation") {
 				return rowId && isAnnotationTrackRowId(rowId)
 					? getAnnotationTrackIndex(rowId)
-					: (annotationRegions.find((region) => region.id === id)?.trackIndex ?? 0);
+					: (annotationTrackIndexById.get(id) ?? 0);
 			}
 			return rowId && isAudioTrackRowId(rowId)
 				? getAudioTrackIndex(rowId)
-				: (audioRegions.find((region) => region.id === id)?.trackIndex ?? 0);
+				: (audioTrackIndexById.get(id) ?? 0);
 		},
-		[annotationRegions, audioRegions],
+		[audioTrackIndexById, annotationTrackIndexById],
 	);
 
 	const hasOverlap = useCallback(
