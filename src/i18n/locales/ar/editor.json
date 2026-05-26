@@ -16,7 +16,7 @@
 		"textContent": "محتوى النص",
 		"textPlaceholder": "أدخل النص هنا…",
 		"fontStyle": "نمط الخط",
-		"selectStyle": "اختر نمطا",
+		"selectStyle": "اختر نمطًا",
 		"size": "الحجم",
 		"toggleBold": "تبديل الخط العريض",
 		"toggleItalic": "تبديل الخط المائل",
@@ -31,17 +31,17 @@
 		"uploadImage": "رفع صورة",
 		"supportedFormats": "الصيغ المدعومة: JPG وPNG وGIF وWebP",
 		"arrowDirection": "اتجاه السهم",
-		"strokeWidth": "عرض الحد: {{width}}px",
+		"strokeWidth": "سمك الخط: {{width}}px",
 		"arrowColor": "لون السهم",
 		"deleteAnnotation": "حذف التعليق التوضيحي",
 		"shortcutsAndTips": "اختصارات ونصائح",
-		"tipSelectAnnotation": "انقل مؤشر التشغيل إلى قسم تعليق متداخل، ثم اختر عنصرا.",
+		"tipSelectAnnotation": "انقل مؤشر التشغيل إلى التعليقات المتداخلة، ثم اختر عنصرًا.",
 		"tipCycleForward": "استخدم Tab للتنقل بين العناصر المتداخلة.",
 		"tipCycleBackward": "استخدم Shift+Tab للتنقل للخلف.",
-		"imageUploadSuccess": "رُفعت الصورة بنجاح!",
+		"imageUploadSuccess": "نجحت عملية رفع الصورة!",
 		"imageUploadError": "يرجى رفع ملف صورة بصيغة JPG أو PNG أو GIF أو WebP.",
 		"blurStrength": "قوة التمويه: {{strength}}",
-		"solidColor": "لون مصمت (حجب)",
+		"solidColor": "لون صلب",
 		"borderRadius": "استدارة الحواف"
 	},
 	"fontStyles": {
@@ -83,7 +83,7 @@
 		"addTrimStep": "1. إضافة قص",
 		"addTrimDesc": "اضغط T أو انقر أيقونة المقص لتحديد قسم تريد إزالته.",
 		"adjustStep": "2. ضبط",
-		"adjustDesc": "اسحب حواف المنطقة الحمراء لتغطي بالضبط ما تريد قصه."
+		"adjustDesc": "اسحب حواف المنطقة الحمراء لتغطي بالضبط ما تريد قصَّه."
 	},
 	"feedback": {
 		"trigger": "ملاحظات",
@@ -113,9 +113,9 @@
 		"untitled": "بدون عنوان"
 	},
 	"nativeCaptureUnavailable": {
-		"title": "لا يوجد عطل، لكن لا يمكن عرض تراكب مؤشر متحرك.",
-		"description": "جهازك لا يدعم الالتقاط الأصلي. قد يحدث ذلك لأسباب لم نحددها بعد. هذا لا يعطل Recordly، لكنه يجعل تنعيم حركة المؤشر غير ممكن.",
-		"confirm": "حسنا"
+		"title": "لا يوجد عطل، لكننا لا نستطيع عرض تراكب لمؤشر متحرك.",
+		"description": "جهازك لا يدعم الالتقاط الأصلي. قد تكون هناك أسباب لم نتمكن من تحديدها بعد. لا يعطل هذا Recordly، لكنه يجعل تنعيم حركة المؤشر غير ممكن.",
+		"confirm": "حسناً"
 	},
 	"exportStatus": {
 		"exporting": "جاري التصدير",

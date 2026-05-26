@@ -19,14 +19,14 @@
 	},
 	"status": {
 		"enabled": "مفعلة",
-		"disabled": "معطلة",
+		"disabled": "غير مفعلة",
 		"installed": "مثبتة"
 	},
 	"detail": {
 		"by": "بواسطة {{author}}",
 		"unknownAuthor": "مؤلف غير معروف",
-		"noDescription": "لا يوجد وصف",
-		"downloads": "{{count}} عملية تنزيل",
+		"noDescription": "لا يوجد وصف.",
+		"downloads": "{{count}} تنزيل",
 		"preview": "معاينة",
 		"screenshotAlt": "لقطة شاشة {{number}}",
 		"description": "الوصف",
@@ -44,16 +44,16 @@
 		"noResults": "لا توجد إضافات",
 		"noMarketplace": "لا توجد إضافات متاحة في المتجر بعد",
 		"count": "{{count}} إضافة",
-		"countPlural": "{{count}} إضافة"
+		"countPlural": "{{count}} إضافات"
 	},
 	"toast": {
-		"installedAndEnabled": "ثُبتت الإضافة وفُعلت.",
-		"uninstalled": "أُلغي تثبيت {{name}}.",
+		"installedAndEnabled": "الإضافة مثبتة ومفعّلة.",
+		"uninstalled": "الإضافة {{name}} لم تعد مثبتة.",
 		"uninstallFailed": "تعذر إلغاء تثبيت {{name}}",
 		"searchFailed": "تعذر البحث في السوق",
 		"refreshed": "حُدثت الإضافات.",
 		"refreshFailed": "تعذر تحديث الإضافات",
-		"marketplaceInstalled": "ثُبت {{name}} وفُعل.",
+		"marketplaceInstalled": "الإضافة {{name}} مفعّلة ومثبتة.",
 		"marketplaceInstallFailed": "تعذر تثبيت {{name}}",
 		"enableFailed": "تعذر تفعيل الإضافة"
 	}
