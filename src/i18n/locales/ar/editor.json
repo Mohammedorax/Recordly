@@ -65,7 +65,7 @@
 		"outputSize": "حجم الإخراج",
 		"outputDimensions": "الإخراج: {{width}} × {{height}}px",
 		"loopAnimation": "تكرار الحركة",
-		"loopDescription": "سيتم تشغيل GIF بشكل مستمر"
+		"loopDescription": "يعاد تشغيل GIF بشكل مستمر"
 	},
 	"tutorial": {
 		"howTrimmingWorks": "كيف يعمل القص",
@@ -74,7 +74,7 @@
 		"descriptionP1": "تعمل أداة القص من خلال تحديد المقاطع التي تريد",
 		"descriptionRemove": "إزالتها",
 		"descriptionP2": "من الفيديو.",
-		"descriptionP3": "أي جزء من المخطط الزمني تغطيه منطقة قص حمراء سيتم حذفه عند التصدير.",
+		"descriptionP3": "يُحذف أي جزء من المخطط الزمني تُغطّيه منطقة قص حمراء عند التصدير.",
 		"visualExample": "مثال بصري",
 		"removed": "محذوف",
 		"kept": "باق",
@@ -88,7 +88,7 @@
 	"feedback": {
 		"trigger": "ملاحظات",
 		"title": "الملاحظات والتواصل",
-		"description": "تواصل مباشرة، أو افتح بلاغا إذا كان هناك شيء معطل أو ناقص.",
+		"description": "تواصل مباشرة، أو افتح بلاغًا إذا كانت هناك مشكلة أو نقص.",
 		"emailLabel": "البريد الإلكتروني",
 		"xLabel": "X",
 		"reportIssue": "الإبلاغ عن مشكلة / إرسال ملاحظات",
@@ -113,21 +113,21 @@
 		"untitled": "بدون عنوان"
 	},
 	"nativeCaptureUnavailable": {
-		"title": "لا يوجد عطل، لكن لن نتمكن من عرض تراكب مؤشر متحرك.",
-		"description": "جهازك لا يدعم الالتقاط الأصلي. قد يحدث ذلك لعدة أسباب لم نحددها بعد. هذا لا يعطل Recordly، لكنه يجعل تنعيم حركة المؤشر غير ممكن.",
+		"title": "لا يوجد عطل، لكن لا يمكن عرض تراكب مؤشر متحرك.",
+		"description": "جهازك لا يدعم الالتقاط الأصلي. قد يحدث ذلك لأسباب لم نحددها بعد. هذا لا يعطل Recordly، لكنه يجعل تنعيم حركة المؤشر غير ممكن.",
 		"confirm": "حسنا"
 	},
 	"exportStatus": {
-		"exporting": "جار التصدير",
-		"renderingFile": "جار عرض ملفك.",
-		"preparing": "جار تجهيز التصدير…",
+		"exporting": "جاري التصدير",
+		"renderingFile": "جاري عرض ملفك.",
+		"preparing": "جاري تجهيز التصدير…",
 		"completePercent": "اكتمل {{percent}}%",
 		"issue": "مشكلة في التصدير",
 		"complete": "اكتمل التصدير",
 		"savedSuccessfully": "حُفظ ملفك بنجاح."
 	},
 	"export": {
-		"processingAudioEdits": "جار معالجة الصوت مع تعديلات السرعة والتراكبات"
+		"processingAudioEdits": "جاري معالجة الصوت مع تعديلات السرعة والتراكبات"
 	},
 	"toolbar": {
 		"addLayer": "إضافة طبقة",

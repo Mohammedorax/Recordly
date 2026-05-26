@@ -17,6 +17,21 @@ if (!locales.includes("en")) {
 	process.exit(1);
 }
 
+const localeArg = process.argv.find((arg) => arg.startsWith("--locale="));
+const requestedLocale = localeArg ? localeArg.split("=", 2)[1] : null;
+
+const localesToCheck =
+	requestedLocale === null
+		? locales.filter((locale) => locale !== "en")
+		: locales.includes(requestedLocale)
+			? [requestedLocale]
+			: [];
+
+if (requestedLocale !== null && localesToCheck.length === 0) {
+	console.error(`i18n-check: locale "${requestedLocale}" not found in locales directory`);
+	process.exit(1);
+}
+
 function loadJson(filePath) {
 	try {
 		return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -61,9 +76,7 @@ for (const namespaceFile of namespaceFiles) {
 	const baseData = loadJson(path.join(baseLocaleDir, namespaceFile));
 	const baseKeys = new Set(collectKeyPaths(baseData));
 
-	for (const locale of locales) {
-		if (locale === "en") continue;
-
+	for (const locale of localesToCheck) {
 		const localeFile = path.join(localesDir, locale, namespaceFile);
 		if (!fs.existsSync(localeFile)) {
 			console.error(`i18n-check: missing namespace file ${locale}/${namespaceFile}`);
